@@ -10,21 +10,22 @@ import gifAnimation.*;
 int mode = 1;
 //0 -> columns have random levels of sorting
 //1 -> columns near eachother have similar levels of sorting
-int indexMode = 1;
-//0 -> columns sorted by min and max brightness
+//2 -> columns have same levels of sorting (this essentially removes "randomness" from sorting)
+int indexMode = 2;
+//0 -> columns sorted by min and max brightness (does not currently work with indexMode 1)
 //1 -> columns sorted according to its own distribution
 //2 -> columns sorted according to average distribution
 int brightMode = 1;
 
 GifMaker gifExport;
 PImage img;
-String imgFileName = "lake";
+String imgFileName = "lost";
 String fileType = "jpg";
 
-int loops = 200;
+int loops = 50;
 
 int blackValue = -10000000;
-int brightnessValue = 60;
+int brightnessValue = 60; //unused
 int whiteValue = -6000000;
 int[] brightnesses;
 int[][] fullSort;
@@ -39,6 +40,7 @@ int row = 0;
 int column = 0;
 
 boolean saved = false;
+boolean finished_flag = false; //use to finish and save gif early
 
 void setup() {
   img = loadImage(imgFileName+"."+fileType);
@@ -48,8 +50,13 @@ void setup() {
   brightnesses = new int[width];
   indices = new int[width];
   for (int i=0; i<width; i++) {
-    brightnesses[i] = (int) random(minBright, maxBright);
-    indices[i] = (int) random(height);
+    if (indexMode != 2) {
+      brightnesses[i] = (int) random(minBright, maxBright);
+      indices[i] = (int) random(height);
+    } else {
+      brightnesses[i] = maxBright;
+      indices[i] = height;
+    }
   }
   gifExport = new GifMaker(this, imgFileName+"_melt_"+indexMode+"_"+brightMode+".gif");
   gifExport.setRepeat(0);
@@ -76,7 +83,7 @@ void draw() {
   println(frameCount);
   img = loadImage(imgFileName+"."+fileType);
   column = 0;
-  row = 0;
+  row = 0; //not used
   while(column < width-1) {
     switch(indexMode) {
       case 0: //use random index
@@ -106,13 +113,29 @@ void draw() {
           indices[column] += height;
         }
         break;
+      case 2: //use even index
+        indices[column] -= (int) height/speed/2;
+        if (indices[column] < 0) {
+          if (brightMode != 0) {
+            finished_flag = true; //stops gif after 1 full cycle of indices
+          }
+          indices[column] += height;
+        }
+        break;
       default:
         break;
     }
     switch(brightMode) {
       case 0: //use minbright and maxbright
-        brightnesses[column] -= (int) random((maxBright-minBright)/speed);
+        if (indexMode == 2) {
+          brightnesses[column] -= (int) (maxBright-minBright)/speed/2;
+        } else {
+          brightnesses[column] -= (int) random((maxBright-minBright)/speed);
+        }
         if (brightnesses[column] <= minBright) {
+          if (indexMode == 2) {
+            finished_flag = true; //stops the gif after 1 full cycle of brightnesses
+          }
           brightnesses[column] += maxBright-minBright;
         }
         break;
@@ -125,7 +148,6 @@ void draw() {
       default:
         break;
     }
-    
       
     img.loadPixels(); 
     sortColumn();
@@ -143,7 +165,7 @@ void draw() {
   image(img,0,0);
   gifExport.setDelay(10);
   gifExport.addFrame();
-  if(!saved && frameCount >= loops) {
+  if(!saved && (frameCount >= loops || finished_flag)) {
     gifExport.finish();
     //saveFrame(imgFileName+"_"+mode+"_"+brightnessValue+".png");
     saved = true;
